@@ -66,9 +66,9 @@ int bms_rx(uint8_t cmd) {
       // if so read it
       mbuf[i] = Serial.read();
       // debug
-      Serial.print(i);
-      Serial.print(" ");
-      Serial.println(mbuf[i], HEX);
+      //Serial.print(i);
+      //Serial.print(" ");
+      //Serial.println(mbuf[i], HEX);
       // state check
       if((i == 0 && mbuf[i] != 0xa5) || // first byte = sync char
           (i == 1 && mbuf[i] != BMS_SLAVE_ADDR) || // 2nd byte = slave addr
@@ -137,7 +137,7 @@ int bms_update(void) {
     bat_i = bms_word(4) - 30000; // leave as uint but 2's complement should be correct in binary anyway...
     Serial.print("current: ");
     Serial.println((int16_t)(bat_i)/10.0);
-    bat_soc = bms_word(6)/10 - 20;
+    bat_soc = bms_word(6)/10;
     Serial.print("soc: ");
     Serial.println(bat_soc);
   }
@@ -148,16 +148,18 @@ int bms_update(void) {
     Serial.println("Rx fail cmd 91!");
     goto fail;
   } else {
-    uint16_t maxv = bms_word(0);
-    uint16_t minv = bms_word(3);
+    bat_maxv = bms_word(0);
+    bat_maxc = bms_byte(2);
+    bat_minv = bms_word(3);
+    bat_minc = bms_byte(5);
     Serial.print("max cell voltage: ");
-    Serial.println(maxv);
+    Serial.println(bat_maxv);
     Serial.print("max cell no: ");
-    Serial.println(bms_byte(2));
+    Serial.println(bat_maxc);
     Serial.print("min cell voltage: ");
-    Serial.println(minv);
+    Serial.println(bat_minv);
     Serial.print("min cell no: ");
-    Serial.println(bms_byte(5));
+    Serial.println(bat_minc);
   }
   // send 92 (max/min temp)
   bms_tx(0x92);
@@ -177,15 +179,16 @@ int bms_update(void) {
     Serial.println("Rx fail cmd 97!");
     goto fail;
   } else {
-    Serial.print("bal status 0-15: ");
-    Serial.println(bms_word(0), BIN);
-    Serial.print("bal status 16-31: ");
-    Serial.println(bms_word(2), BIN);
-    Serial.print("bal status 32-47: ");
-    Serial.println(bms_word(4), BIN);
-    Serial.print("bal status 48-63: ");
-    Serial.println(bms_word(6), BIN);
+    Serial.print("bal status 1-8: ");
+    Serial.println(bms_byte(0), BIN);
+    Serial.print("bal status 9-16: ");
+    Serial.println(bms_byte(1), BIN);
+    bat_stat = bms_byte(1);
+    bat_stat <<= 8;
+    bat_stat |= bms_byte(0);
   }
+  // no input for soh - just reset to 100...
+  bat_soh = 100;
   bms_rx_end();
   return 1;
 fail:
