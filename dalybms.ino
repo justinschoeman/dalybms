@@ -1,6 +1,8 @@
 #include <Wire.h>
 #include <ACROBOTIC_SSD1306.h>
 // https://github.com/janelia-arduino/Watchdog.git
+#include <Watchdog.h>
+
 
 // BATTERY CONFIGURATION
 
@@ -74,6 +76,9 @@ uint8_t mbuf[13];
 #include "can.h"
 #include "derate.h"
 
+// watchdog instance
+Watchdog watchdog;
+
 unsigned long can_rpt_ms;
 
 void setup() {
@@ -95,6 +100,9 @@ void setup() {
 
   // schedule first run now...
   can_rpt_ms = millis() - CAN_RPT_MS;
+
+  // start watchdog
+  watchdog.enable(Watchdog::TIMEOUT_8S);
 }
 
 // need to put proper column counting into library...
@@ -103,9 +111,6 @@ void oled_eol(void) {
 }
 
 void loop() {
-  int i;
-  int l = 0;
-
   // wait for next poll interval
   if(millis() - can_rpt_ms < CAN_RPT_MS) {
     return;
@@ -125,60 +130,84 @@ void loop() {
     // transmit can data
     can_update();
     // update display
-    oled.setTextXY(l++,0);
-    oled.putFloat(bat_v/100.0, 2);
-    oled.putString("V ");
-    oled.putFloat((int16_t)(bat_i)/10.0, 2);
-    oled.putString("A");
-    oled_eol();
-    oled.setTextXY(l++,0);
-    oled.putString("Min: ");
-    oled.putNumber(bat_minv);
-    oled.putString(" (");
-    oled.putNumber(bat_minc);
-    oled.putString(")");
-    oled_eol();
-    oled.setTextXY(l++,0);
-    oled.putString("Max: ");
-    oled.putNumber(bat_maxv);
-    oled.putString(" (");
-    oled.putNumber(bat_maxc);
-    oled.putString(")");
-    oled_eol();
-    oled.setTextXY(l++,0);
-    oled.putString("Diff: ");
-    oled.putNumber(bat_maxv - bat_minv);
-    oled_eol();
-    oled.setTextXY(l++,0);
-    oled.putString("CV: ");
-    oled.putFloat(bat_chg_v/1000.0, 2);
-    oled.putString("/");
-    oled.putFloat(BAT_CHG_V/1000.0, 2);
-    oled_eol();
-    oled.setTextXY(l++,0);
-    oled.putString("CI: ");
-    oled.putFloat(bat_chg_i/100.0, 1);
-    oled.putString("/");
-    oled.putNumber(BAT_CHG_I);
-    oled_eol();
-    oled.setTextXY(l++,0);
-    oled.putString("DI: ");
-    oled.putFloat(bat_dis_i/100.0, 1);
-    oled.putString("/");
-    oled.putNumber(BAT_DIS_I);
-    oled_eol();
-    oled.setTextXY(l++,0);
-    for(i = 0; i < 16; i++) {
-      if(bat_stat & 1) {
-	oled.putChar('*');
+    display_update();
+    // bump watchdog (only if EVERYTHING was successfull)
+    watchdog.enable(Watchdog::TIMEOUT_1S);
+  }
+}
+
+void display_update(void) {
+  int i;
+  int l = 0;
+
+  // current measurements
+  oled.setTextXY(l++,0);
+  oled.putFloat(bat_v/100.0, 2);
+  oled.putString("V ");
+  oled.putFloat((int16_t)(bat_i)/10.0, 2);
+  oled.putString("A");
+  oled_eol();
+
+  // min cell
+  oled.setTextXY(l++,0);
+  oled.putString("Min: ");
+  oled.putNumber(bat_minv);
+  oled.putString(" (");
+  oled.putNumber(bat_minc);
+  oled.putString(")");
+  oled_eol();
+
+  // max cell
+  oled.setTextXY(l++,0);
+  oled.putString("Max: ");
+  oled.putNumber(bat_maxv);
+  oled.putString(" (");
+  oled.putNumber(bat_maxc);
+  oled.putString(")");
+  oled_eol();
+
+  // cell delta
+  oled.setTextXY(l++,0);
+  oled.putString("Diff: ");
+  oled.putNumber(bat_maxv - bat_minv);
+  oled_eol();
+
+  // target charge voltage
+  oled.setTextXY(l++,0);
+  oled.putString("CV: ");
+  oled.putFloat(bat_chg_v/1000.0, 2);
+  oled.putString("/");
+  oled.putFloat(BAT_CHG_V/1000.0, 2);
+  oled_eol();
+
+  // target charge current
+  oled.setTextXY(l++,0);
+  oled.putString("CI: ");
+  oled.putFloat(bat_chg_i/100.0, 1);
+  oled.putString("/");
+  oled.putNumber(BAT_CHG_I);
+  oled_eol();
+
+  // target discharge current
+  oled.setTextXY(l++,0);
+  oled.putString("DI: ");
+  oled.putFloat(bat_dis_i/100.0, 1);
+  oled.putString("/");
+  oled.putNumber(BAT_DIS_I);
+  oled_eol();
+
+  // balancer status
+  oled.setTextXY(l++,0);
+  for(i = 0; i < 16; i++) {
+    if(bat_stat & 1) {
+      oled.putChar('*');
+    } else {
+      if(i < 9) {
+        oled.putNumber(i + 9);
       } else {
-	if(i < 9) {
-	  oled.putNumber(i + 9);
-	} else {
-	  oled.putNumber(i - 9);
-	}
+        oled.putNumber(i - 9);
       }
-      bat_stat >>= 1;
     }
+    bat_stat >>= 1;
   }
 }
