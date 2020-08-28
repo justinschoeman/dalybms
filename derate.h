@@ -1,6 +1,7 @@
 int8_t lv_lockout = 0;
 unsigned long lv_lockout_ms;
 
+// target control parameters (inverter gets unhappy if targets change too quickly, so derate module specifies targets and then ramps avtuals towards these targets)
 // charge voltage, mV
 uint16_t trg_chg_v;
 // charge current 0.01A

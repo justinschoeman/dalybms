@@ -1,5 +1,6 @@
 #include <Wire.h>
 #include <ACROBOTIC_SSD1306.h>
+// https://github.com/janelia-arduino/Watchdog.git
 
 // BATTERY CONFIGURATION
 
@@ -26,12 +27,13 @@
 // min discharge voltage (mV)
 #define BAT_DIS_V (CELL_CNT * CELL_MIN_V)
 // low voltage lockout in ms
-#define LV_LOCKOUT_MS (30UL*1000UL)
+#define LV_LOCKOUT_MS (300UL*1000UL)
 // can report interval in ms
 #define CAN_RPT_MS 1000UL
 
 // shared battery state - write here in pylon/can units
 // measured parameters
+
 //voltage, 10mV
 uint16_t bat_v = 0; //uninit flag
 // current, 0.1A
@@ -39,25 +41,28 @@ uint16_t bat_i;
 // bat temp, 0.1C
 uint16_t bat_t;
 
-// output/control parameters
+// output/control parameters (SET IN DERATE.H)
+// these are updated by ramp functions, so start with safe values, which
+// will ramp up to target values
+
 // charge voltage, mV
 uint16_t bat_chg_v = BAT_SAFE_V;
 // charge current 0.01A
-uint16_t bat_chg_i = 0;// start at 0 charge and ramp up... BAT_CHG_I * 100U;
+uint16_t bat_chg_i = 0;// start at 0 charge and ramp up... //BAT_CHG_I * 100U;
 // discharge current 0.01A
 uint16_t bat_dis_i = BAT_DIS_I * 100U;
 // discharge voltage mV
 uint16_t bat_dis_v = BAT_DIS_V;
-// state of charge, %
+// state of charge, % (*shared measurement parameter)
 uint16_t bat_soc;
-// state of health, %
+// state of health, % (no source - just fake)
 uint16_t bat_soh = 100;
 
-uint16_t bat_maxv;
-uint16_t bat_minv;
-uint8_t bat_maxc;
-uint8_t bat_minc;
-uint16_t bat_stat;
+uint16_t bat_maxv; // max cell voltage
+uint16_t bat_minv; // min cell voltage
+uint8_t bat_maxc; // cell number (1 at negative pole) with max voltage
+uint8_t bat_minc; // cell number with min voltage
+uint16_t bat_stat; // balancer status bit0 = cell 1 '1' == balancing
 
 // shared message buffer
 // can-bms is 8 bytes
@@ -74,20 +79,25 @@ unsigned long can_rpt_ms;
 void setup() {
   // set up serial port
   Serial.begin(9600);
+
   // set up display
   Wire.begin();  
   Wire.setClock(400000);
+  // Initialze SSD1306 OLED display
   oled.init();
   oled.clearDisplay();
-  // Initialze SSD1306 OLED display
+
   // set up bms pins
   bms_setup();
+
   // set up can bus
   can_setup();
+
   // schedule first run now...
   can_rpt_ms = millis() - CAN_RPT_MS;
 }
 
+// need to put proper column counting into library...
 void oled_eol(void) {
   oled.putString("                ");
 }
@@ -95,10 +105,14 @@ void oled_eol(void) {
 void loop() {
   int i;
   int l = 0;
+
+  // wait for next poll interval
   if(millis() - can_rpt_ms < CAN_RPT_MS) {
     return;
   }
   can_rpt_ms = millis();
+
+  // read bms
   Serial.println("POLL");
   if(!bms_update()) {
     Serial.println("BMS update failed."); 
@@ -155,9 +169,16 @@ void loop() {
     oled_eol();
     oled.setTextXY(l++,0);
     for(i = 0; i < 16; i++) {
-      if(bat_stat & 1) oled.putChar('*'); else oled.putChar('.');
+      if(bat_stat & 1) {
+	oled.putChar('*');
+      } else {
+	if(i < 9) {
+	  oled.putNumber(i + 9);
+	} else {
+	  oled.putNumber(i - 9);
+	}
+      }
       bat_stat >>= 1;
-      //if(i == 7) oled.setTextXY(l++,0);
     }
   }
 }
