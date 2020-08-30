@@ -9,14 +9,16 @@ uint16_t trg_chg_i;
 
 void derate(void) {
   uint16_t delta;
-  float f;
+  uint32_t t32;
 
   // always start with some sane defaults
   // for sanity sake, always keep the lowest meaningful charge voltage, and ramp up as required...
-  trg_chg_v = bat_v * 10U;
-  trg_chg_v += CELL_CNT*(CELL_MAX_V - bat_maxv); // set the target voltage = current voltage + whatever is required to make the max cell full (spread over all cells)
-  if(trg_chg_v > BAT_CHG_V) trg_chg_v = BAT_CHG_V; // clamp to normal max
-
+  // this  could potentially overflow
+  t32 = bat_v * 10U;
+  t32 += (uint32_t)CELL_CNT*(uint32_t)(CELL_MAX_V - bat_maxv); // set the target voltage = current voltage + whatever is required to make the max cell full (spread over all cells)
+  if(t32 > (uint32_t)BAT_CHG_V) t32 = BAT_CHG_V; // clamp to normal max
+  trg_chg_v = t32;
+  
   // default to normal max current
   trg_chg_i = BAT_CHG_I*100;
 
@@ -30,19 +32,28 @@ void derate(void) {
     //trg_chg_v -= (bat_maxv - BAT_MAX_V) * 200; // retard by 200mV for each mV above target...
   } else if(bat_maxv > CELL_DERATE_V) {
     Serial.println("HIGH VOLTAGE!");
-    // derate voltage
+    // derate voltage - done globally above as the default
     //trg_chg_v = bat_v * 10U;
     //trg_chg_v += 16*(BAT_MAX_V - bat_maxv); // set the target voltage = current voltage + whatever is required to make the max cell full
     //if(trg_chg_v > BAT_CHG_V) trg_chg_v = BAT_CHG_V; // clamp to normal max
 
     // derate current
-    delta = bat_maxv - CELL_DERATE_V;
+    /*delta = bat_maxv - CELL_DERATE_V;
     f = delta;
     f /= (float)(CELL_MAX_V - CELL_DERATE_V);
     // (min derate) 0 < f <= 1 (full derate)
     f = 1.0 - f;
     //f *= f; // make it very rapid at first
-    trg_chg_i = (float)(BAT_CHG_I * 100U) * f;
+    trg_chg_i = (float)(BAT_CHG_I * 100U) * f; */
+    // FIXME - fixed point...
+    // f = 1-(b - d) / (m - d)
+    // f = ((m -d) - (b - d)) / (m - d)
+    // f = (m - d - b + d) / (m - d)
+    // f = (m - b) / (m - d)
+    t32 = CELL_MAX_V - bat_maxv;
+    t32 *= trg_chg_i;
+    t32 /= (uint32_t)(CELL_MAX_V - CELL_DERATE_V); // can never remeber C rules - just make 100% sure this doesn't demote somewhere
+    trg_chg_i = t32;
   }
   
   // test - hard limit current in closing phases...
