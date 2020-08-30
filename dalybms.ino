@@ -1,8 +1,8 @@
+// NB - USE MINICORE TO BURN UP TO DATE BOOTLOADER OR WATCHDOG WILL RESULT IN A BOOT LOOP
+
 #include <Wire.h>
 #include <ACROBOTIC_SSD1306.h>
-// https://github.com/janelia-arduino/Watchdog.git
-#include <Watchdog.h>
-
+#include <avr/wdt.h>
 
 // BATTERY CONFIGURATION
 
@@ -10,7 +10,7 @@
 // cell count
 #define CELL_CNT 16
 // maximum cell voltage (mV)
-#define CELL_MAX_V 3600U
+#define CELL_MAX_V 3650U
 // minimum cell voltage (mV)
 #define CELL_MIN_V 2500U
 // safe default charge voltage (mV)
@@ -76,16 +76,17 @@ uint8_t mbuf[13];
 #include "can.h"
 #include "derate.h"
 
-// watchdog instance
-Watchdog watchdog;
-
 unsigned long can_rpt_ms;
 
 void setup() {
+  // start watchdog
+  wdt_enable(WDTO_8S);
+
   // set up serial port
   Serial.begin(9600);
 
   // set up display
+  Serial.println("Init display");
   Wire.begin();  
   Wire.setClock(400000);
   // Initialze SSD1306 OLED display
@@ -93,16 +94,15 @@ void setup() {
   oled.clearDisplay();
 
   // set up bms pins
+  Serial.println("Init BMS");
   bms_setup();
 
   // set up can bus
+  Serial.println("Init CAN");
   can_setup();
 
   // schedule first run now...
   can_rpt_ms = millis() - CAN_RPT_MS;
-
-  // start watchdog
-  watchdog.enable(Watchdog::TIMEOUT_8S);
 }
 
 // need to put proper column counting into library...
@@ -132,7 +132,7 @@ void loop() {
     // update display
     display_update();
     // bump watchdog (only if EVERYTHING was successfull)
-    watchdog.enable(Watchdog::TIMEOUT_1S);
+    wdt_reset();
   }
 }
 
@@ -200,10 +200,10 @@ void display_update(void) {
   oled.setTextXY(l++,0);
   for(i = 0; i < 16; i++) {
     if(bat_stat & 1) {
-      oled.putChar('*');
+      oled.putChar('.');
     } else {
       if(i < 9) {
-        oled.putNumber(i + 9);
+        oled.putNumber(i + 1);
       } else {
         oled.putNumber(i - 9);
       }
