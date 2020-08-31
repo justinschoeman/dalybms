@@ -7,6 +7,13 @@ uint16_t trg_chg_v;
 // charge current 0.01A
 uint16_t trg_chg_i;
 
+void derate_setup(void) {
+  bat_chg_v = BAT_SAFE_V;
+  bat_chg_i = 0; // start at 0 charge and ramp up... //BAT_CHG_I * 100U;
+  bat_dis_i = BAT_DIS_I * 100U;
+  bat_dis_v = BAT_DIS_V;
+}
+
 void derate(void) {
   uint16_t delta;
   uint32_t t32;

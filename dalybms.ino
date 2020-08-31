@@ -1,6 +1,7 @@
 // NB - USE MINICORE TO BURN UP TO DATE BOOTLOADER OR WATCHDOG WILL RESULT IN A BOOT LOOP
 
 #include <Wire.h>
+// https://github.com/acrobotic/Ai_Ardulib_SSD1306
 #include <ACROBOTIC_SSD1306.h>
 #include <avr/wdt.h>
 
@@ -48,13 +49,13 @@ uint16_t bat_t;
 // will ramp up to target values
 
 // charge voltage, mV
-uint16_t bat_chg_v = BAT_SAFE_V;
+uint16_t bat_chg_v;
 // charge current 0.01A
-uint16_t bat_chg_i = 0;// start at 0 charge and ramp up... //BAT_CHG_I * 100U;
+uint16_t bat_chg_i;
 // discharge current 0.01A
-uint16_t bat_dis_i = BAT_DIS_I * 100U;
+uint16_t bat_dis_i;
 // discharge voltage mV
-uint16_t bat_dis_v = BAT_DIS_V;
+uint16_t bat_dis_v;
 // state of charge, % (*shared measurement parameter)
 uint16_t bat_soc;
 // state of health, % (no source - just fake)
@@ -96,6 +97,12 @@ void setup() {
   // set up bms pins
   Serial.println("Init BMS");
   bms_setup();
+
+
+  // set up derate module
+  Serial.println("Init DERATE");
+  derate_setup();
+
 
   // set up can bus
   Serial.println("Init CAN");
