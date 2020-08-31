@@ -31,7 +31,7 @@ void can_clear(void) {
 
 void can_send(uint16_t cmd, int len, uint8_t * b) {
   int i;
-  Serial.print(cmd, HEX);
+  /*Serial.print(cmd, HEX);
   Serial.print(" [");
   Serial.print(len);
   Serial.print("]");
@@ -39,7 +39,7 @@ void can_send(uint16_t cmd, int len, uint8_t * b) {
     Serial.print(" ");
     Serial.print(b[i], HEX);
   }
-  Serial.println("");
+  Serial.println("");*/
   CAN.sendMsgBuf(cmd, 0, len, b);
 }
 

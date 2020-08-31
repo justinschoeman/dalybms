@@ -39,10 +39,10 @@ int derate_check_input(void) {
     derate_error_count = 0;
     return 0;
   }
-  Serial.println("*** UNRELIABLE DATA? ***");
+  oled_error("*** UNRELIABLE DATA? ***");
   derate_error_count++;
   if(derate_error_count > 5) {
-    Serial.println("TOO MANY ERRORS - REBOOTING!");
+    oled_error("TOO MANY ERRORS - REBOOTING!");
     // hang and let watchdog reboot us
     while(1) {}
   }

@@ -75,6 +75,22 @@ uint16_t bat_stat; // balancer status bit0 = cell 1 '1' == balancing
 
 uint8_t mbuf[13];
 
+// shared functions
+void oled_error(const char * s) {
+  int r = 1;
+
+  Serial.println(s);
+  oled.clearDisplay();
+  for(;;) {
+    oled.setTextXY(r++,0);
+    oled.putString(s);
+    if(strlen(s) <= 16) break;
+    s += 16;
+  }
+  delay(500UL);
+}
+
+
 #include "bms.h"
 #include "can.h"
 #include "derate.h"
@@ -141,10 +157,7 @@ void loop() {
   // read bms
   Serial.println("POLL");
   if(!bms_update()) {
-    Serial.println("BMS update failed."); 
-    oled.clearDisplay();
-    oled.setTextXY(0,0);
-    oled.putString("BMS READ FAILED");
+    oled_error("BMS READ FAILED");
  } else {
     // derate charge/discharge
     derate();
