@@ -5,6 +5,8 @@
 #include <ACROBOTIC_SSD1306.h>
 #include <avr/wdt.h>
 
+#define BUZZER_PIN 9
+
 // BATTERY CONFIGURATION
 
 // cell parameters
@@ -83,6 +85,15 @@ void setup() {
   // start watchdog
   wdt_enable(WDTO_8S);
 
+  // beep the beeper
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, 1);
+  delay(500UL);
+  digitalWrite(BUZZER_PIN, 0);
+
+  // keep watchdog ticking
+  wdt_reset();
+
   // set up serial port
   Serial.begin(9600);
 
@@ -110,6 +121,9 @@ void setup() {
 
   // schedule first run now...
   can_rpt_ms = millis() - CAN_RPT_MS;
+
+  // keep watchdog ticking
+  wdt_reset();
 }
 
 // need to put proper column counting into library...
