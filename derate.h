@@ -6,12 +6,26 @@ unsigned long lv_lockout_ms;
 uint16_t trg_chg_v;
 // charge current 0.01A
 uint16_t trg_chg_i;
+// bad input count
+int derate_error_count;
 
 void derate_setup(void) {
   bat_chg_v = BAT_SAFE_V;
   bat_chg_i = 0; // start at 0 charge and ramp up... //BAT_CHG_I * 100U;
   bat_dis_i = BAT_DIS_I * 100U;
   bat_dis_v = BAT_DIS_V;
+  derate_error_count = 0;
+}
+
+// set the target in a safe way, without overflows
+void derate_set_trg_v(uint32_t ofs) {
+  uint32_t t32;
+  
+  t32 = bat_v;
+  t32 *= 10U;
+  t32 += ofs;
+  if(t32 > (uint32_t)BAT_CHG_V) t32 = BAT_CHG_V; // clamp to normal max
+  trg_chg_v = t32;
 }
 
 void derate(void) {
@@ -21,10 +35,9 @@ void derate(void) {
   // always start with some sane defaults
   // for sanity sake, always keep the lowest meaningful charge voltage, and ramp up as required...
   // this  could potentially overflow
-  t32 = bat_v * 10U;
-  t32 += (uint32_t)CELL_CNT*(uint32_t)(CELL_MAX_V - bat_maxv); // set the target voltage = current voltage + whatever is required to make the max cell full (spread over all cells)
-  if(t32 > (uint32_t)BAT_CHG_V) t32 = BAT_CHG_V; // clamp to normal max
-  trg_chg_v = t32;
+  t32 = CELL_MAX_V - bat_maxv;
+  t32 *= (uint32_t)CELL_CNT;  // set the target voltage = current voltage + whatever is required to make the max cell full (spread over all cells)
+  derate_set_trg_v(t32);
   
   // default to normal max current
   trg_chg_i = BAT_CHG_I*100;
@@ -34,7 +47,7 @@ void derate(void) {
     // over - shut off charging...
     Serial.println("OVERVOLTAGE!");
     trg_chg_i = 0;
-    trg_chg_v = bat_v * 10U;
+    derate_set_trg_v(0);
     // do not do this - implausible values can cause inverter to ignore us!
     //trg_chg_v -= (bat_maxv - BAT_MAX_V) * 200; // retard by 200mV for each mV above target...
   } else if(bat_maxv > CELL_DERATE_V) {
