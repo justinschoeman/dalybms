@@ -28,9 +28,33 @@ void derate_set_trg_v(uint32_t ofs) {
   trg_chg_v = t32;
 }
 
+int derate_check_input(void) {
+  // the bms occasionally spits out really bad data...
+  // no idea how bad it can be (range wise), but try to detect it, and if we do, skip for a while
+  // if it is still bad force a watchdog reset and try again...
+  // not going to quality check bat_maxv - rather stopping charging prematurely than overcharging...
+  if(bat_v < 6000 && bat_minv < 4000) {
+    // total battery voltage < 60V and minimum cell voltage < 4V
+    // assume OKish
+    derate_error_count = 0;
+    return 0;
+  }
+  Serial.println("*** UNRELIABLE DATA? ***");
+  derate_error_count++;
+  if(derate_error_count > 5) {
+    Serial.println("TOO MANY ERRORS - REBOOTING!");
+    // hang and let watchdog reboot us
+    while(1) {}
+  }
+  return 1;
+}
+
 void derate(void) {
   uint16_t delta;
   uint32_t t32;
+
+  // check if input is good before processing it
+  if(derate_check_input()) return;
 
   // always start with some sane defaults
   // for sanity sake, always keep the lowest meaningful charge voltage, and ramp up as required...
