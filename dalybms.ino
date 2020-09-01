@@ -8,18 +8,31 @@
 #define BUZZER_PIN 9
 
 // BATTERY CONFIGURATION
+// LBSA recommends the following for their built packs
+//  charge: 56V = 3500mV
+//  float:  54V = 3375mV
+//  min:    48V = 3000mV
+// Datasheet gives:
+//  charge: 3650mV
+//  min:    2500mV
+//
+// I will keep min as 2500mV, as inverter will cut off at 10% anyway...
+// Max I will choose 3600mV - which will generally top out somewhere around 3550 due to proportional control loop.
+// Will derate at -200mV though, as time from 3500-> max will be close to 0 at 150A
+//
+// I will also use CELL_SAFE_V as the float point (54.4V)
 
 // cell parameters
 // cell count
 #define CELL_CNT 16
 // maximum cell voltage (mV)
-#define CELL_MAX_V 3650U
+#define CELL_MAX_V 3600U
 // minimum cell voltage (mV)
 #define CELL_MIN_V 2500U
 // safe default charge voltage (mV)
 #define CELL_SAFE_V 3400U
 // maximum cell voltage before we derate
-#define CELL_DERATE_V (CELL_MAX_V - 100U)
+#define CELL_DERATE_V (CELL_MAX_V - 200U)
 
 // default max charge voltage (mV)
 #define BAT_CHG_V (CELL_CNT * CELL_MAX_V)
@@ -33,6 +46,21 @@
 #define BAT_DIS_V (CELL_CNT * CELL_MIN_V)
 // low voltage lockout in ms
 #define LV_LOCKOUT_MS (300UL*1000UL)
+
+// float logic parameters
+// specified float voltage
+#define BAT_FLOAT_V (CELL_CNT * CELL_SAFE_V)
+// cell minimum float voltage (minimum cell must be at least this voltage
+#define CELL_FLOAT_MIN_V (CELL_SAFE_V + 50U)
+// cell maximum float voltage (maximum cell must be at least this voltage
+#define CELL_FLOAT_MAX_V (CELL_MAX_V - 50U)
+// maximum float current (current must be below this limit - 3% of rated capacity is recommended)
+#define BAT_FLOAT_I (BAT_DIS_I / 33)
+// minimum time at above conditions before switching to float
+#define BAT_FLOAT_MS (5UL * 60UL * 1000UL)
+// min cell voltage for float release (when one cell falls below this, cancel float mode)
+#define CELL_FLOAT_END_V 3350
+
 // can report interval in ms
 #define CAN_RPT_MS 1000UL
 
@@ -49,6 +77,11 @@ uint16_t bat_t;
 // output/control parameters (SET IN DERATE.H)
 // these are updated by ramp functions, so start with safe values, which
 // will ramp up to target values
+
+// charge/float mode (0 = charge, 1 = float)
+uint8_t bat_mode;
+// timestamp for last float good parameter
+unsigned long bat_mode_ms;
 
 // charge voltage, mV
 uint16_t bat_chg_v;
@@ -176,6 +209,7 @@ void display_update(void) {
 
   // current measurements
   oled.setTextXY(l++,0);
+  if(bat_mode) oled.putChar('F');
   oled.putFloat(bat_v/100.0, 2);
   oled.putString("V ");
   oled.putFloat((int16_t)(bat_i)/10.0, 2);

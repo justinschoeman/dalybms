@@ -10,6 +10,8 @@ uint16_t trg_chg_i;
 int derate_error_count;
 
 void derate_setup(void) {
+  bat_mode = 0; // charge mode
+  bat_mode_ms = millis();
   bat_chg_v = BAT_SAFE_V;
   bat_chg_i = 0; // start at 0 charge and ramp up... //BAT_CHG_I * 100U;
   bat_dis_i = BAT_DIS_I * 100U;
@@ -24,11 +26,15 @@ void derate_set_trg_v(uint32_t ofs) {
   t32 = bat_v;
   t32 *= 10U;
   t32 += ofs;
-  if(t32 > (uint32_t)BAT_CHG_V) t32 = BAT_CHG_V; // clamp to normal max
+  if(bat_mode == 0) {
+    if(t32 > (uint32_t)BAT_CHG_V) t32 = BAT_CHG_V; // clamp to normal max
+  } else {
+    if(t32 > (uint32_t)BAT_FLOAT_V) t32 = BAT_FLOAT_V; // clamp to float max
+  }
   trg_chg_v = t32;
 }
 
-int derate_check_input(void) {
+int8_t derate_check_input(void) {
   // the bms occasionally spits out really bad data...
   // no idea how bad it can be (range wise), but try to detect it, and if we do, skip for a while
   // if it is still bad force a watchdog reset and try again...
@@ -49,6 +55,22 @@ int derate_check_input(void) {
   return 1;
 }
 
+// we are in charge mode - test if all the minimum requirements are met
+// (EXCEPT TIME) for switching to float.
+int8_t derate_test_float(void) {
+  if((bat_v * 10U) < BAT_FLOAT_V) return 0; // overall voltage too low
+  Serial.println("batv OK");
+  if(bat_minv < CELL_FLOAT_MIN_V) return 0; // lowest cell below min
+  Serial.println("batv min OK");
+  if(bat_maxv < CELL_FLOAT_MAX_V) return 0; // highset cell lestt than min
+  Serial.println("batv max OK");
+  Serial.println(-(int16_t)bat_i);
+  Serial.println(BAT_FLOAT_I * 10);
+  if(-(int16_t)bat_i > (BAT_FLOAT_I * 10)) return 0; // current too high
+  Serial.println("FLOAT OK");
+  return 1;
+}
+
 void derate(void) {
   uint16_t delta;
   uint32_t t32;
@@ -56,11 +78,35 @@ void derate(void) {
   // check if input is good before processing it
   if(derate_check_input()) return;
 
+  // overall mode control
+  if(bat_mode == 0) {
+    // charge mode - test if we must switch to float
+    if(derate_test_float()) {
+       // we meet all the requirements (except possibly time) for float mode
+       if((millis() - bat_mode_ms) > BAT_FLOAT_MS) {
+         Serial.println("FLOAT MODE NOW");
+         bat_mode = 1;
+       }
+    } else {
+      // not ready for float - update timestamp for latest non-float time
+      bat_mode_ms = millis();
+    }
+  } else {
+    // float mode - test if we must switch to charge
+    if(bat_minv < CELL_FLOAT_END_V) {
+      Serial.println("FLOAT END");
+      bat_mode = 0;
+      bat_mode_ms = millis();
+    }
+  }
+
   // always start with some sane defaults
   // for sanity sake, always keep the lowest meaningful charge voltage, and ramp up as required...
   // this  could potentially overflow
   t32 = CELL_MAX_V - bat_maxv;
   t32 *= (uint32_t)CELL_CNT;  // set the target voltage = current voltage + whatever is required to make the max cell full (spread over all cells)
+  // inverter is too gentle close to voltage limits - lets make it slightly more aggressive
+  t32 *= (uint32_t)2;
   derate_set_trg_v(t32);
   
   // default to normal max current
