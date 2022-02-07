@@ -16,6 +16,7 @@ void derate_setup(void) {
   bat_chg_i = 0; // start at 0 charge and ramp up... //BAT_CHG_I * 100U;
   bat_dis_i = BAT_DIS_I * 100U;
   bat_dis_v = BAT_DIS_V;
+  bat_ce_diff = 0;
   derate_error_count = 0;
 }
 
@@ -85,6 +86,7 @@ void derate(void) {
        // we meet all the requirements (except possibly time) for float mode
        if((millis() - bat_mode_ms) > BAT_FLOAT_MS) {
          Serial.println("FLOAT MODE NOW");
+         bat_ce_diff = bat_maxv - bat_minv;
          bat_mode = 1;
        }
     } else {

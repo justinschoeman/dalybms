@@ -57,7 +57,8 @@
 // maximum float current (current must be below this limit - 3% of rated capacity is recommended)
 #define BAT_FLOAT_I (BAT_DIS_I / 33)
 // minimum time at above conditions before switching to float
-#define BAT_FLOAT_MS (5UL * 60UL * 1000UL)
+// increase to 30 minutes - need some time at the top to balance...
+#define BAT_FLOAT_MS (30UL * 60UL * 1000UL)
 // min cell voltage for float release (when one cell falls below this, cancel float mode)
 #define CELL_FLOAT_END_V 3350
 
@@ -101,6 +102,7 @@ uint16_t bat_minv; // min cell voltage
 uint8_t bat_maxc; // cell number (1 at negative pole) with max voltage
 uint8_t bat_minc; // cell number with min voltage
 uint16_t bat_stat; // balancer status bit0 = cell 1 '1' == balancing
+uint16_t bat_ce_diff; // charge end cell difference in mV
 
 // shared message buffer
 // can-bms is 8 bytes
@@ -238,6 +240,8 @@ void display_update(void) {
   oled.setTextXY(l++,0);
   oled.putString("Diff: ");
   oled.putNumber(bat_maxv - bat_minv);
+  oled.putString("/");
+  oled.putNumber(bat_ce_diff);
   oled_eol();
 
   // target charge voltage
