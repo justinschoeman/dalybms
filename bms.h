@@ -13,6 +13,95 @@
 // sample message
 // A5 40 90 08 00 00 00 00 00 00 00 00 7D
 
+// guess how long we should wait for a response? (ms)
+#define BMS_RX_TO 100
+
+#if 1
+#include <SoftwareSerial.h>
+
+SoftwareSerial mySerial(3, 4); // RX, TX
+
+// NB - TX leaves RS485 transceiver enabled for RX!
+int bms_tx(uint8_t cmd) {
+  int i;
+
+  // prepare tx message
+  mbuf[0] = 0xa5; //sync char
+  mbuf[1] = BMS_HOST_ADDR; // our addr
+  mbuf[2] = cmd;
+  mbuf[3] = 0x08;
+  memset(mbuf+4, 0, 8); // rest must be 0
+  mbuf[12] = 0;
+  // calculate checksum
+  for(i = 0; i <= 11; i++) {
+    mbuf[12] += mbuf[i];
+    //Serial.println(mbuf[i], HEX);
+  }
+  //Serial.println(mbuf[12], HEX);
+
+  // flush input buffer
+  while(mySerial.available()) mySerial.read();
+
+  delay(100);
+
+  // send buffer
+  mySerial.write(mbuf, 13);
+  //for(i = 0; i<=12; i++) Serial.write(mbuf[i]);
+  // wait for last bit to be out of the tx shift register (flush() does this on recent arduino builds)
+  mySerial.flush();
+}
+
+// read a frame into mbuf
+// return 0 on error
+int bms_rx(uint8_t cmd) {
+  int i;
+  uint8_t cs = 0;
+  unsigned long start_time = millis();
+
+  // receive buffer (13 bytes)
+  for(i = 0; i <= 12; ) {
+    // serial available?
+    if(mySerial.available()) {
+      // if so read it
+      mbuf[i] = mySerial.read();
+      // debug
+      //Serial.print(i);
+      //Serial.print(" ");
+      //Serial.println(mbuf[i], HEX);
+      // state check
+      if((i == 0 && mbuf[i] != 0xa5) || // first byte = sync char
+          (i == 1 && mbuf[i] != BMS_SLAVE_ADDR) || // 2nd byte = slave addr
+          (i == 2 && mbuf[i] != cmd) || // 3rd byte = cmd
+          (i == 3 && mbuf[i] != 0x08) || //4th byte = fixed length (8)
+          (i == 12 && mbuf[i] != cs)) { // 13th byte = checksum
+          // not frame header - reset
+          i = 0; // first byte
+          cs = 0; // clear checksum
+      } else {
+        cs += mbuf[i]; //compute checksum
+        i++; // next byte
+      }
+    }
+    // timeout?
+    if((millis() - start_time) > BMS_RX_TO) {
+      return 0;
+    }
+  }
+  // managed to exit for loop with all 13 bytes validated
+  return 1;
+}
+
+// disable recevier after we have received last packet...
+void bms_rx_end(void) {
+  //digitalWrite(BMS_NRE, 1); // disable re
+}
+
+// set up bms rs-485 driver pins
+void bms_setup(void) {
+  mySerial.begin(9600);
+}
+
+#else
 // NB - TX leaves RS485 transceiver enabled for RX!
 int bms_tx(uint8_t cmd) {
   int i;
@@ -105,6 +194,7 @@ void bms_setup(void) {
   digitalWrite(BMS_DE, 0);
   pinMode(BMS_DE, OUTPUT);
 }
+#endif
 
 // read a word from mbuf from data byte offset i
 uint16_t bms_word(int i) {
