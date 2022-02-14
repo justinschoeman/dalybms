@@ -19,7 +19,7 @@
 #if 1
 #include <SoftwareSerial.h>
 
-SoftwareSerial mySerial(3, 4); // RX, TX
+SoftwareSerial mySerial(8, 9); // RX, TX
 
 // NB - TX leaves RS485 transceiver enabled for RX!
 int bms_tx(uint8_t cmd) {

@@ -5,7 +5,7 @@
 #include <ACROBOTIC_SSD1306.h>
 #include <avr/wdt.h>
 
-#define BUZZER_PIN 9
+#define BUZZER_PIN 5
 
 // BATTERY CONFIGURATION
 // LBSA recommends the following for their built packs
@@ -193,7 +193,7 @@ void loop() {
   Serial.println("POLL");
   if(!bms_update()) {
     oled_error("BMS READ FAILED");
- } else {
+  } else {
     // derate charge/discharge
     derate();
     // transmit can data
