@@ -21,6 +21,10 @@
 
 SoftwareSerial mySerial(3, 4); // RX, TX
 
+unsigned long bms_frame_ms;
+// seems to require a minimum of 7ms between frames to work reliably...
+#define BMS_FRAME_DELAY 20UL
+
 // NB - TX leaves RS485 transceiver enabled for RX!
 int bms_tx(uint8_t cmd) {
   int i;
@@ -42,7 +46,7 @@ int bms_tx(uint8_t cmd) {
   // flush input buffer
   while(mySerial.available()) mySerial.read();
 
-  delay(100);
+  while((millis() - bms_frame_ms) < BMS_FRAME_DELAY) {}
 
   // send buffer
   mySerial.write(mbuf, 13);
@@ -84,10 +88,12 @@ int bms_rx(uint8_t cmd) {
     }
     // timeout?
     if((millis() - start_time) > BMS_RX_TO) {
+      bms_frame_ms = millis();
       return 0;
     }
   }
   // managed to exit for loop with all 13 bytes validated
+  bms_frame_ms = millis();
   return 1;
 }
 
@@ -99,6 +105,7 @@ void bms_rx_end(void) {
 // set up bms rs-485 driver pins
 void bms_setup(void) {
   mySerial.begin(9600);
+  bms_frame_ms = millis();
 }
 
 #else
